@@ -223,6 +223,10 @@ When orcastrate detects drift, it opens **one PR per workflow file**:
 
 If a PR already exists for the same workflow, it updates the existing PR instead of creating a new one.
 
+### Example PR
+
+[![Example PR](.github/images/screenshot.png)](https://github.com/michidk/orcastrate/pull/6)
+
 ## Design decisions
 
 - **No external server** — runs entirely within GitHub Actions

@@ -9,6 +9,7 @@ const BOT_EMAIL: &str = "41898282+github-actions[bot]@users.noreply.github.com";
 pub struct GitHubClient {
     crab: Octocrab,
     pr_crab: Option<Octocrab>,
+    is_app_auth: bool,
     dry_run: bool,
 }
 
@@ -46,20 +47,22 @@ pub struct PrInfo {
 }
 
 impl GitHubClient {
-    pub fn new(crab: Octocrab, pr_crab: Option<Octocrab>, dry_run: bool) -> Self {
+    pub fn new(
+        crab: Octocrab,
+        pr_crab: Option<Octocrab>,
+        is_app_auth: bool,
+        dry_run: bool,
+    ) -> Self {
         Self {
             crab,
             pr_crab,
+            is_app_auth,
             dry_run,
         }
     }
 
     fn pr_client(&self) -> &Octocrab {
         self.pr_crab.as_ref().unwrap_or(&self.crab)
-    }
-
-    fn has_separate_pr_client(&self) -> bool {
-        self.pr_crab.is_some()
     }
 
     pub fn is_dry_run(&self) -> bool {
@@ -258,7 +261,7 @@ impl GitHubClient {
             "parents": [req.base_sha],
         });
 
-        if self.has_separate_pr_client() {
+        if !self.is_app_auth {
             let bot = serde_json::json!({
                 "name": BOT_NAME,
                 "email": BOT_EMAIL,

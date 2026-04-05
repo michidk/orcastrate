@@ -242,7 +242,7 @@ async fn sync_repo(
         .collect();
 
     let commit_msg = format!(
-        "orcastrate: sync {} workflow{}",
+        "chore(orcastrate): sync {} workflow{}",
         updates.len(),
         if updates.len() == 1 { "" } else { "s" }
     );
@@ -260,7 +260,7 @@ async fn sync_repo(
 
     let pr_body = build_pr_body(&updates);
     let pr_title = format!(
-        "orcastrate: sync {} workflow{}",
+        "chore(orcastrate): sync {} workflow{}",
         updates.len(),
         if updates.len() == 1 { "" } else { "s" }
     );

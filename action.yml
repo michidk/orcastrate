@@ -2,21 +2,29 @@ name: "Orcastrate"
 description: "GitHub Actions orchestrator — template, sync, and manage workflows at org scale"
 
 inputs:
+  command:
+    description: "Command to run (sync, validate, drift, list-repos, list-templates)"
+    required: false
+    default: "sync"
   config:
     description: "Path to orchestrator.toml config file"
     required: false
     default: "orchestrator.toml"
+  mode:
+    description: "Sync mode: pr (default), issue, or silent"
+    required: false
+    default: "pr"
   dry-run:
     description: "Run without creating PRs or modifying files"
     required: false
     default: "false"
-  command:
-    description: "Command to run (sync, validate, drift)"
+  orcastrate-token:
+    description: "PAT with workflow scope for writing .github/workflows/ files"
     required: false
-    default: "sync"
   github-token:
-    description: "GitHub token for API access (defaults to GITHUB_TOKEN)"
+    description: "GitHub token for PR creation (defaults to GITHUB_TOKEN)"
     required: false
+    default: ${{ github.token }}
   app-id:
     description: "GitHub App ID (for App-based auth)"
     required: false
@@ -29,13 +37,17 @@ inputs:
 
 runs:
   using: "docker"
-  image: "Dockerfile"
+  image: "docker://ghcr.io/michidk/orcastrate:latest"
   args:
-    - ${{ inputs.command }}
     - "--config"
     - ${{ inputs.config }}
+    - ${{ inputs.dry-run == 'true' && '--dry-run' || '' }}
+    - ${{ inputs.command }}
+    - "--mode"
+    - ${{ inputs.mode }}
   env:
-    GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
+    ORCASTRATE_TOKEN: ${{ inputs.orcastrate-token }}
+    GITHUB_TOKEN: ${{ inputs.github-token }}
     ORCASTRATE_APP_ID: ${{ inputs.app-id }}
     ORCASTRATE_PRIVATE_KEY: ${{ inputs.private-key }}
     ORCASTRATE_INSTALLATION_ID: ${{ inputs.installation-id }}

@@ -157,6 +157,7 @@ jobs:
           name: ${{ github.ref_name }}
           body: ${{ needs.changelog.outputs.release_body }}
           files: artifacts/*.tar.gz
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

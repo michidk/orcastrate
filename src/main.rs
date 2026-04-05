@@ -177,5 +177,10 @@ async fn build_client(dry_run: bool) -> anyhow::Result<GitHubClient> {
         );
     };
 
-    Ok(GitHubClient::new(crab, dry_run))
+    let pr_crab = std::env::var("GITHUB_TOKEN")
+        .ok()
+        .map(|t| Octocrab::builder().personal_token(t).build())
+        .transpose()?;
+
+    Ok(GitHubClient::new(crab, pr_crab, dry_run))
 }

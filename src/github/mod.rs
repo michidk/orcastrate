@@ -5,6 +5,7 @@ use crate::error::Error;
 
 pub struct GitHubClient {
     crab: Octocrab,
+    pr_crab: Option<Octocrab>,
     dry_run: bool,
 }
 
@@ -42,8 +43,16 @@ pub struct PrInfo {
 }
 
 impl GitHubClient {
-    pub fn new(crab: Octocrab, dry_run: bool) -> Self {
-        Self { crab, dry_run }
+    pub fn new(crab: Octocrab, pr_crab: Option<Octocrab>, dry_run: bool) -> Self {
+        Self {
+            crab,
+            pr_crab,
+            dry_run,
+        }
+    }
+
+    fn pr_client(&self) -> &Octocrab {
+        self.pr_crab.as_ref().unwrap_or(&self.crab)
     }
 
     pub fn is_dry_run(&self) -> bool {
@@ -295,7 +304,7 @@ impl GitHubClient {
         head_branch: &str,
     ) -> crate::error::Result<Option<PrInfo>> {
         let prs = self
-            .crab
+            .pr_client()
             .pulls(owner, repo)
             .list()
             .state(octocrab::params::State::Open)
@@ -323,7 +332,7 @@ impl GitHubClient {
         }
 
         let pr = self
-            .crab
+            .pr_client()
             .pulls(req.owner, req.repo)
             .create(req.title, req.head, req.base)
             .body(req.body)
@@ -339,7 +348,7 @@ impl GitHubClient {
         if !req.labels.is_empty() {
             let labels: Vec<String> = req.labels.to_vec();
             if let Err(e) = self
-                .crab
+                .pr_client()
                 .issues(req.owner, req.repo)
                 .add_labels(info.number, &labels)
                 .await
@@ -364,7 +373,7 @@ impl GitHubClient {
             return Ok(());
         }
 
-        self.crab
+        self.pr_client()
             .pulls(owner, repo)
             .update(pr_number)
             .title(title)

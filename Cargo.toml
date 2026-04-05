@@ -1,0 +1,32 @@
+[package]
+name = "orcastrate"
+version = "0.1.0"
+edition = "2021"
+description = "GitHub Actions orchestrator - template, sync, and manage workflows at org scale"
+license = "MIT"
+repository = "https://github.com/orcastrate/orcastrate"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_norway = "0.9"
+toml = "0.8"
+octocrab = "0.44"
+http = "1"
+tera = "1"
+similar = { version = "2", features = ["text"] }
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+jsonwebtoken = "9"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

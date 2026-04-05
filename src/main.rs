@@ -141,6 +141,8 @@ async fn build_client(dry_run: bool) -> anyhow::Result<GitHubClient> {
     let private_key = std::env::var("ORCASTRATE_PRIVATE_KEY").ok();
     let installation_id = std::env::var("ORCASTRATE_INSTALLATION_ID").ok();
 
+    let mut use_pr_crab = false;
+
     let crab = if app_id.is_some() || private_key.is_some() || installation_id.is_some() {
         let (app_id, private_key, installation_id) = match (app_id, private_key, installation_id) {
             (Some(app_id), Some(private_key), Some(installation_id)) => {
@@ -167,6 +169,7 @@ async fn build_client(dry_run: bool) -> anyhow::Result<GitHubClient> {
             .await?;
         installation_crab
     } else if let Ok(token) = std::env::var("ORCASTRATE_TOKEN") {
+        use_pr_crab = true;
         Octocrab::builder().personal_token(token).build()?
     } else if let Ok(token) = std::env::var("GITHUB_TOKEN") {
         Octocrab::builder().personal_token(token).build()?
@@ -177,10 +180,14 @@ async fn build_client(dry_run: bool) -> anyhow::Result<GitHubClient> {
         );
     };
 
-    let pr_crab = std::env::var("GITHUB_TOKEN")
-        .ok()
-        .map(|t| Octocrab::builder().personal_token(t).build())
-        .transpose()?;
+    let pr_crab = if use_pr_crab {
+        std::env::var("GITHUB_TOKEN")
+            .ok()
+            .map(|t| Octocrab::builder().personal_token(t).build())
+            .transpose()?
+    } else {
+        None
+    };
 
     Ok(GitHubClient::new(crab, pr_crab, dry_run))
 }

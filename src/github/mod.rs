@@ -3,6 +3,9 @@ use tracing::{debug, info, warn};
 
 use crate::error::Error;
 
+const BOT_NAME: &str = "github-actions[bot]";
+const BOT_EMAIL: &str = "41898282+github-actions[bot]@users.noreply.github.com";
+
 pub struct GitHubClient {
     crab: Octocrab,
     pr_crab: Option<Octocrab>,
@@ -53,6 +56,10 @@ impl GitHubClient {
 
     fn pr_client(&self) -> &Octocrab {
         self.pr_crab.as_ref().unwrap_or(&self.crab)
+    }
+
+    fn has_separate_pr_client(&self) -> bool {
+        self.pr_crab.is_some()
     }
 
     pub fn is_dry_run(&self) -> bool {
@@ -245,24 +252,25 @@ impl GitHubClient {
             .as_str()
             .ok_or_else(|| Error::GitHub("missing sha in tree response".into()))?;
 
-        let bot_identity = serde_json::json!({
-            "name": "github-actions[bot]",
-            "email": "41898282+github-actions[bot]@users.noreply.github.com",
+        let mut commit_body = serde_json::json!({
+            "message": req.message,
+            "tree": tree_sha,
+            "parents": [req.base_sha],
         });
+
+        if self.has_separate_pr_client() {
+            let bot = serde_json::json!({
+                "name": BOT_NAME,
+                "email": BOT_EMAIL,
+            });
+            commit_body["author"] = bot.clone();
+            commit_body["committer"] = bot;
+        }
 
         let commit_route = format!("/repos/{}/{}/git/commits", req.owner, req.repo);
         let commit: serde_json::Value = self
             .crab
-            .post(
-                &commit_route,
-                Some(&serde_json::json!({
-                    "message": req.message,
-                    "tree": tree_sha,
-                    "parents": [req.base_sha],
-                    "author": bot_identity,
-                    "committer": bot_identity,
-                })),
-            )
+            .post(&commit_route, Some(&commit_body))
             .await
             .map_err(|e| {
                 Error::GitHub(format!(

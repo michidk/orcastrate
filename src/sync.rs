@@ -272,11 +272,16 @@ async fn sync_repo(
             .iter()
             .map(|u| u.path.rsplit('/').next().unwrap_or(&u.path))
             .collect();
-        format!(
+        let full = format!(
             "chore(ci): sync {} workflows ({})",
             updates.len(),
             names.join(", ")
-        )
+        );
+        if full.len() <= 80 {
+            full
+        } else {
+            format!("chore(ci): sync {} workflows", updates.len())
+        }
     };
 
     let existing = client.find_existing_pr(owner, repo, &branch_name).await?;

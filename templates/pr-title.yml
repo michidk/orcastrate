@@ -1,10 +1,18 @@
-name: Check PR title
+name: PR Title
 
-on: [pull_request_target]
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+concurrency:
+  group: pr-title-${{ "{{ github.event.pull_request.number }}" }}
+  cancel-in-progress: true
 
 jobs:
   lint:
+    name: Conventional Commit Check
     runs-on: {{ runner | default(value="ubuntu-24.04") }}
+    timeout-minutes: 5
     permissions:
       statuses: write
     steps:

@@ -339,12 +339,7 @@ impl GitHubClient {
             .send()
             .await
             .map_err(|e| {
-                Error::GitHub(format!(
-                    "create PR in {}/{}: {}",
-                    req.owner,
-                    req.repo,
-                    e.to_string().replace('\n', " ")
-                ))
+                Error::GitHub(format!("create PR in {}/{}: {e:?}", req.owner, req.repo,))
             })?;
 
         let info = PrInfo {

@@ -1,0 +1,45 @@
+name: "Orcastrate"
+description: "GitHub Actions orchestrator — template, sync, and manage workflows at org scale"
+
+inputs:
+  config:
+    description: "Path to orchestrator.toml config file"
+    required: false
+    default: "orchestrator.toml"
+  dry-run:
+    description: "Run without creating PRs or modifying files"
+    required: false
+    default: "false"
+  command:
+    description: "Command to run (sync, validate, drift)"
+    required: false
+    default: "sync"
+  github-token:
+    description: "GitHub token for API access (defaults to GITHUB_TOKEN)"
+    required: false
+  app-id:
+    description: "GitHub App ID (for App-based auth)"
+    required: false
+  private-key:
+    description: "GitHub App private key PEM (for App-based auth)"
+    required: false
+  installation-id:
+    description: "GitHub App installation ID (for App-based auth)"
+    required: false
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.command }}
+    - "--config"
+    - ${{ inputs.config }}
+  env:
+    GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
+    ORCASTRATE_APP_ID: ${{ inputs.app-id }}
+    ORCASTRATE_PRIVATE_KEY: ${{ inputs.private-key }}
+    ORCASTRATE_INSTALLATION_ID: ${{ inputs.installation-id }}
+
+branding:
+  icon: "git-merge"
+  color: "purple"

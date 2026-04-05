@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod diff;
 mod error;
+mod gha;
 mod github;
 mod sync;
 mod template;
@@ -59,6 +60,7 @@ async fn cmd_sync(cli: &Cli) -> anyhow::Result<()> {
 
     let report = sync::run(&config, &renderer, &client, filter_repo, mode).await?;
     println!("{}", report.summary());
+    gha::write_summary(&report.summary_markdown());
 
     let has_errors = report.results.iter().any(|r| !r.errors.is_empty());
     if has_errors {

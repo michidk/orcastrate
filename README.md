@@ -2,6 +2,7 @@
   <img src=".github/images/thumbnail.png" alt="Orcastrate — GitHub Actions Orchestrator for Organizations" width="800">
 </p>
 
+> [!NOTE]
 > Stop copy-pasting workflow files across repos. Define canonical templates once, sync them everywhere, and get PRs when repos drift.
 
 ## How it works

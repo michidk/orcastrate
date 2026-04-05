@@ -221,92 +221,70 @@ async fn sync_repo(
     }
 
     let default_branch = client.get_default_branch(owner, repo).await?;
-
-    let branch_name = format!(
-        "{}/{}",
-        config.orchestrator.branch_prefix,
-        repo_name.replace('/', "-")
-    );
-
     let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
-    client
-        .create_branch(owner, repo, &branch_name, &base_sha)
-        .await?;
+    let labels = vec![config.orchestrator.pr_label.clone()];
 
-    let file_changes: Vec<FileChange> = updates
-        .iter()
-        .map(|u| FileChange {
-            path: u.path.clone(),
-            content: u.rendered.clone(),
-        })
-        .collect();
-
-    let commit_msg = format!(
-        "chore(ci): sync {} workflow{}",
-        updates.len(),
-        if updates.len() == 1 { "" } else { "s" }
-    );
-
-    client
-        .commit_files(&CommitRequest {
-            owner,
-            repo,
-            branch: &branch_name,
-            message: &commit_msg,
-            base_sha: &base_sha,
-            files: &file_changes,
-        })
-        .await?;
-
-    let pr_body = build_pr_body(&updates);
-    let pr_title = if updates.len() == 1 {
-        let template = &updates[0].template;
-        let path = updates[0]
+    for update in &updates {
+        let workflow_name = update
             .path
             .rsplit('/')
             .next()
-            .unwrap_or(&updates[0].path);
-        format!("chore(ci): sync `{path}` from template `{template}`")
-    } else {
-        let names: Vec<&str> = updates
-            .iter()
-            .map(|u| u.path.rsplit('/').next().unwrap_or(&u.path))
-            .collect();
-        let full = format!(
-            "chore(ci): sync {} workflows ({})",
-            updates.len(),
-            names.join(", ")
-        );
-        if full.len() <= 80 {
-            full
-        } else {
-            format!("chore(ci): sync {} workflows", updates.len())
-        }
-    };
+            .unwrap_or(&update.path)
+            .trim_end_matches(".yml")
+            .trim_end_matches(".yaml");
 
-    let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
+        let branch_name = format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
 
-    if let Some(pr) = existing {
         client
-            .update_pr(owner, repo, pr.number, &pr_title, &pr_body)
+            .create_branch(owner, repo, &branch_name, &base_sha)
             .await?;
-        info!("  updated PR #{} ({})", pr.number, pr.url);
-        result.prs_updated += 1;
-    } else {
-        let labels = vec![config.orchestrator.pr_label.clone()];
-        let pr = client
-            .create_pr(&CreatePrRequest {
+
+        client
+            .commit_files(&CommitRequest {
                 owner,
                 repo,
-                title: &pr_title,
-                body: &pr_body,
-                head: &branch_name,
-                base: &default_branch,
-                labels: &labels,
+                branch: &branch_name,
+                message: &format!(
+                    "chore(ci): sync `{}` from template `{}`",
+                    update.path, update.template
+                ),
+                base_sha: &base_sha,
+                files: &[FileChange {
+                    path: update.path.clone(),
+                    content: update.rendered.clone(),
+                }],
             })
             .await?;
-        info!("  created PR #{} ({})", pr.number, pr.url);
-        result.prs_created += 1;
+
+        let pr_title = format!(
+            "chore(ci): sync `{}` from template `{}`",
+            workflow_name, update.template
+        );
+        let pr_body = build_pr_body(update);
+
+        let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
+
+        if let Some(pr) = existing {
+            client
+                .update_pr(owner, repo, pr.number, &pr_title, &pr_body)
+                .await?;
+            info!("  updated PR #{} ({})", pr.number, pr.url);
+            result.prs_updated += 1;
+        } else {
+            let pr = client
+                .create_pr(&CreatePrRequest {
+                    owner,
+                    repo,
+                    title: &pr_title,
+                    body: &pr_body,
+                    head: &branch_name,
+                    base: &default_branch,
+                    labels: &labels,
+                })
+                .await?;
+            info!("  created PR #{} ({})", pr.number, pr.url);
+            result.prs_created += 1;
+        }
     }
 
     Ok(result)
@@ -319,7 +297,7 @@ struct WorkflowUpdate {
     template: String,
 }
 
-fn build_pr_body(updates: &[WorkflowUpdate]) -> String {
+fn build_pr_body(update: &WorkflowUpdate) -> String {
     let mut body = String::new();
 
     body.push_str("## Orcastrate Workflow Sync\n\n");
@@ -328,40 +306,30 @@ fn build_pr_body(updates: &[WorkflowUpdate]) -> String {
          to sync workflow files with their canonical templates.\n\n",
     );
 
-    body.push_str("### Changes\n\n");
+    let summary = diff::diff_summary(&update.current, &update.rendered);
+    body.push_str(&format!(
+        "**`{}`** — template `{}` ({summary})\n",
+        update.path, update.template
+    ));
 
-    for update in updates {
-        let summary = diff::diff_summary(&update.current, &update.rendered);
-        body.push_str(&format!(
-            "- **`{}`** — template `{}` ({summary})\n",
-            update.path, update.template
-        ));
+    body.push_str("\n### Diff\n\n");
+
+    let diff_text = diff::generate_diff(&update.current, &update.rendered, &update.path);
+    let diff_lines: Vec<_> = diff_text.lines().collect();
+    let truncated = diff_lines.len() > 200;
+    let mut diff_text = diff_lines
+        .into_iter()
+        .take(200)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if truncated {
+        diff_text.push_str("\n... (truncated, full diff in branch)\n");
+    } else {
+        diff_text.push('\n');
     }
 
-    body.push_str("\n### Diffs\n\n");
-
-    for update in updates {
-        let diff_text = diff::generate_diff(&update.current, &update.rendered, &update.path);
-        let diff_lines: Vec<_> = diff_text.lines().collect();
-        let truncated = diff_lines.len() > 200;
-        let mut diff_text = diff_lines
-            .into_iter()
-            .take(200)
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if truncated {
-            diff_text.push_str("\n... (truncated, full diff in branch)\n");
-        } else {
-            diff_text.push('\n');
-        }
-
-        body.push_str(&format!(
-            "<details>\n<summary>{}</summary>\n\n```diff\n{diff_text}```\n\n</details>\n\n",
-            update.path
-        ));
-    }
-
+    body.push_str(&format!("```diff\n{diff_text}```\n\n"));
     body.push_str("---\n*Managed by orcastrate. Do not edit managed sections manually.*\n");
 
     body

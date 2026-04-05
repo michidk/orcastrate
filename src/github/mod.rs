@@ -98,7 +98,9 @@ impl GitHubClient {
             .ok_or_else(|| Error::GitHub(format!("{owner}/{repo}/{path}: empty response")))?;
 
         let decoded = file.decoded_content().ok_or_else(|| {
-            Error::GitHub(format!("{owner}/{repo}/{path}: content missing or not decodable"))
+            Error::GitHub(format!(
+                "{owner}/{repo}/{path}: content missing or not decodable"
+            ))
         })?;
 
         Ok((decoded, file.sha))
@@ -163,8 +165,7 @@ impl GitHubClient {
             Ok(_) => Ok(()),
             Err(e) if is_unprocessable(&e) => {
                 debug!("branch {branch} already exists, force-updating");
-                let update_route =
-                    format!("/repos/{owner}/{repo}/git/refs/heads/{branch}");
+                let update_route = format!("/repos/{owner}/{repo}/git/refs/heads/{branch}");
                 let _: serde_json::Value = self
                     .crab
                     .patch(
@@ -173,9 +174,7 @@ impl GitHubClient {
                     )
                     .await
                     .map_err(|e| {
-                        Error::GitHub(format!(
-                            "update branch {branch} in {owner}/{repo}: {e}"
-                        ))
+                        Error::GitHub(format!("update branch {branch} in {owner}/{repo}: {e}"))
                     })?;
                 Ok(())
             }
@@ -246,17 +245,11 @@ impl GitHubClient {
 
         Ok(prs.items.into_iter().next().map(|pr| PrInfo {
             number: pr.number,
-            url: pr
-                .html_url
-                .map(|u| u.to_string())
-                .unwrap_or_default(),
+            url: pr.html_url.map(|u| u.to_string()).unwrap_or_default(),
         }))
     }
 
-    pub async fn create_pr(
-        &self,
-        req: &CreatePrRequest<'_>,
-    ) -> crate::error::Result<PrInfo> {
+    pub async fn create_pr(&self, req: &CreatePrRequest<'_>) -> crate::error::Result<PrInfo> {
         if self.dry_run {
             info!(
                 "[dry-run] would create PR '{}' in {}/{} ({} -> {})",
@@ -275,16 +268,11 @@ impl GitHubClient {
             .body(req.body)
             .send()
             .await
-            .map_err(|e| {
-                Error::GitHub(format!("create PR in {}/{}: {e}", req.owner, req.repo))
-            })?;
+            .map_err(|e| Error::GitHub(format!("create PR in {}/{}: {e}", req.owner, req.repo)))?;
 
         let info = PrInfo {
             number: pr.number,
-            url: pr
-                .html_url
-                .map(|u| u.to_string())
-                .unwrap_or_default(),
+            url: pr.html_url.map(|u| u.to_string()).unwrap_or_default(),
         };
 
         if !req.labels.is_empty() {
@@ -322,9 +310,7 @@ impl GitHubClient {
             .body(body)
             .send()
             .await
-            .map_err(|e| {
-                Error::GitHub(format!("update PR #{pr_number} in {owner}/{repo}: {e}"))
-            })?;
+            .map_err(|e| Error::GitHub(format!("update PR #{pr_number} in {owner}/{repo}: {e}")))?;
 
         Ok(())
     }
@@ -348,7 +334,11 @@ impl GitHubClient {
             .await
             .map_err(|e| Error::GitHub(format!("search repos: {e}")))?;
 
-        let mut repos: Vec<String> = results.items.into_iter().filter_map(|r| r.full_name).collect();
+        let mut repos: Vec<String> = results
+            .items
+            .into_iter()
+            .filter_map(|r| r.full_name)
+            .collect();
 
         while let Some(mut next_page) = self
             .crab

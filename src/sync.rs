@@ -101,7 +101,11 @@ async fn resolve_repos(
     client: &GitHubClient,
     filter_repo: Option<&str>,
 ) -> crate::error::Result<Vec<String>> {
-    let mut repos: Vec<String> = config.active_repos().iter().map(|r| r.name.clone()).collect();
+    let mut repos: Vec<String> = config
+        .active_repos()
+        .iter()
+        .map(|r| r.name.clone())
+        .collect();
 
     if let Some(ref discovery) = config.discovery {
         let discovered = client
@@ -315,7 +319,11 @@ fn build_pr_body(updates: &[WorkflowUpdate]) -> String {
         let diff_text = diff::generate_diff(&update.current, &update.rendered, &update.path);
         let diff_lines: Vec<_> = diff_text.lines().collect();
         let truncated = diff_lines.len() > 200;
-        let mut diff_text = diff_lines.into_iter().take(200).collect::<Vec<_>>().join("\n");
+        let mut diff_text = diff_lines
+            .into_iter()
+            .take(200)
+            .collect::<Vec<_>>()
+            .join("\n");
 
         if truncated {
             diff_text.push_str("\n... (truncated, full diff in branch)\n");

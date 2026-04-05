@@ -155,8 +155,9 @@ async fn build_client(dry_run: bool) -> anyhow::Result<GitHubClient> {
         let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key.as_bytes())?;
 
         let app_crab = Octocrab::builder().app(app_id.into(), key).build()?;
-        let (installation_crab, _token) =
-            app_crab.installation_and_token(installation_id.into()).await?;
+        let (installation_crab, _token) = app_crab
+            .installation_and_token(installation_id.into())
+            .await?;
         installation_crab
     } else if let Ok(token) = std::env::var("ORCASTRATE_TOKEN") {
         Octocrab::builder().personal_token(token).build()?

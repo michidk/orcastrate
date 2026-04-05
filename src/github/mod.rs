@@ -405,6 +405,91 @@ impl GitHubClient {
         Ok(())
     }
 
+    pub async fn find_existing_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        title: &str,
+    ) -> crate::error::Result<Option<PrInfo>> {
+        let issues = self
+            .pr_client()
+            .issues(owner, repo)
+            .list()
+            .state(octocrab::params::State::Open)
+            .per_page(100)
+            .send()
+            .await
+            .map_err(|e| Error::GitHub(format!("list issues for {owner}/{repo}: {e}")))?;
+
+        Ok(issues
+            .items
+            .into_iter()
+            .find(|i| i.title == title && i.pull_request.is_none())
+            .map(|i| PrInfo {
+                number: i.number,
+                url: i.html_url.to_string(),
+            }))
+    }
+
+    pub async fn create_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        title: &str,
+        body: &str,
+        labels: &[String],
+    ) -> crate::error::Result<PrInfo> {
+        if self.dry_run {
+            info!("[dry-run] would create issue '{title}' in {owner}/{repo}");
+            return Ok(PrInfo {
+                number: 0,
+                url: format!("https://github.com/{owner}/{repo}/issues/0"),
+            });
+        }
+
+        let issue = self
+            .pr_client()
+            .issues(owner, repo)
+            .create(title)
+            .body(body)
+            .labels(labels.to_vec())
+            .send()
+            .await
+            .map_err(|e| Error::GitHub(format!("create issue in {owner}/{repo}: {e:?}",)))?;
+
+        Ok(PrInfo {
+            number: issue.number,
+            url: issue.html_url.to_string(),
+        })
+    }
+
+    pub async fn update_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue_number: u64,
+        body: &str,
+    ) -> crate::error::Result<()> {
+        if self.dry_run {
+            info!("[dry-run] would update issue #{issue_number} in {owner}/{repo}");
+            return Ok(());
+        }
+
+        self.pr_client()
+            .issues(owner, repo)
+            .update(issue_number)
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| {
+                Error::GitHub(format!(
+                    "update issue #{issue_number} in {owner}/{repo}: {e}"
+                ))
+            })?;
+
+        Ok(())
+    }
+
     pub async fn discover_repos(
         &self,
         org: &str,

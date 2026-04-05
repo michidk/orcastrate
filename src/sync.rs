@@ -1,3 +1,4 @@
+use crate::cli::SyncMode;
 use crate::config::Config;
 use crate::diff;
 use crate::github::{CommitRequest, CreatePrRequest, FileChange, GitHubClient};
@@ -9,8 +10,11 @@ pub struct SyncResult {
     pub repo: String,
     pub workflows_checked: usize,
     pub workflows_managed: usize,
+    pub drifted: usize,
     pub prs_created: usize,
     pub prs_updated: usize,
+    pub issues_created: usize,
+    pub issues_updated: usize,
     pub errors: Vec<String>,
 }
 
@@ -18,6 +22,7 @@ pub struct SyncResult {
 pub struct SyncReport {
     pub results: Vec<SyncResult>,
     pub dry_run: bool,
+    pub mode: SyncMode,
 }
 
 impl SyncReport {
@@ -25,8 +30,7 @@ impl SyncReport {
         let total_repos = self.results.len();
         let total_checked: usize = self.results.iter().map(|r| r.workflows_checked).sum();
         let total_managed: usize = self.results.iter().map(|r| r.workflows_managed).sum();
-        let total_prs_created: usize = self.results.iter().map(|r| r.prs_created).sum();
-        let total_prs_updated: usize = self.results.iter().map(|r| r.prs_updated).sum();
+        let total_drifted: usize = self.results.iter().map(|r| r.drifted).sum();
         let total_errors: usize = self.results.iter().map(|r| r.errors.len()).sum();
 
         let mut s = String::new();
@@ -38,15 +42,24 @@ impl SyncReport {
         s.push_str(&format!("Repos processed:    {total_repos}\n"));
         s.push_str(&format!("Workflows checked:  {total_checked}\n"));
         s.push_str(&format!("Managed workflows:  {total_managed}\n"));
-        s.push_str(&format!(
-            "{}        {total_prs_created}\n",
-            if self.dry_run {
-                "PRs would be created:"
-            } else {
-                "PRs created:"
+        s.push_str(&format!("Drifted:            {total_drifted}\n"));
+
+        match self.mode {
+            SyncMode::Pr => {
+                let created: usize = self.results.iter().map(|r| r.prs_created).sum();
+                let updated: usize = self.results.iter().map(|r| r.prs_updated).sum();
+                s.push_str(&format!("PRs created:        {created}\n"));
+                s.push_str(&format!("PRs updated:        {updated}\n"));
             }
-        ));
-        s.push_str(&format!("PRs updated:        {total_prs_updated}\n"));
+            SyncMode::Issue => {
+                let created: usize = self.results.iter().map(|r| r.issues_created).sum();
+                let updated: usize = self.results.iter().map(|r| r.issues_updated).sum();
+                s.push_str(&format!("Issues created:     {created}\n"));
+                s.push_str(&format!("Issues updated:     {updated}\n"));
+            }
+            SyncMode::Silent => {}
+        }
+
         s.push_str(&format!("Errors:             {total_errors}\n"));
 
         if total_errors > 0 {
@@ -67,6 +80,7 @@ pub async fn run(
     renderer: &TemplateRenderer,
     client: &GitHubClient,
     filter_repo: Option<&str>,
+    mode: SyncMode,
 ) -> crate::error::Result<SyncReport> {
     let repos = resolve_repos(config, client, filter_repo).await?;
     info!("syncing {} repos", repos.len());
@@ -74,7 +88,7 @@ pub async fn run(
     let mut results = Vec::new();
 
     for repo_name in &repos {
-        match sync_repo(config, renderer, client, repo_name).await {
+        match sync_repo(config, renderer, client, repo_name, mode).await {
             Ok(r) => results.push(r),
             Err(e) => {
                 error!("failed to sync {repo_name}: {e}");
@@ -82,8 +96,11 @@ pub async fn run(
                     repo: repo_name.clone(),
                     workflows_checked: 0,
                     workflows_managed: 0,
+                    drifted: 0,
                     prs_created: 0,
                     prs_updated: 0,
+                    issues_created: 0,
+                    issues_updated: 0,
                     errors: vec![e.to_string()],
                 });
             }
@@ -93,6 +110,7 @@ pub async fn run(
     Ok(SyncReport {
         results,
         dry_run: client.is_dry_run(),
+        mode,
     })
 }
 
@@ -138,6 +156,7 @@ async fn sync_repo(
     renderer: &TemplateRenderer,
     client: &GitHubClient,
     repo_name: &str,
+    mode: SyncMode,
 ) -> crate::error::Result<SyncResult> {
     let (owner, repo) = repo_name
         .split_once('/')
@@ -149,8 +168,11 @@ async fn sync_repo(
         repo: repo_name.to_string(),
         workflows_checked: 0,
         workflows_managed: 0,
+        drifted: 0,
         prs_created: 0,
         prs_updated: 0,
+        issues_created: 0,
+        issues_updated: 0,
         errors: Vec::new(),
     };
 
@@ -220,8 +242,12 @@ async fn sync_repo(
         return Ok(result);
     }
 
-    let default_branch = client.get_default_branch(owner, repo).await?;
-    let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+    result.drifted = updates.len();
+
+    if matches!(mode, SyncMode::Silent) {
+        return Ok(result);
+    }
+
     let labels = vec![config.orchestrator.pr_label.clone()];
 
     for update in &updates {
@@ -233,57 +259,78 @@ async fn sync_repo(
             .trim_end_matches(".yml")
             .trim_end_matches(".yaml");
 
-        let branch_name = format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
-
-        client
-            .create_branch(owner, repo, &branch_name, &base_sha)
-            .await?;
-
-        client
-            .commit_files(&CommitRequest {
-                owner,
-                repo,
-                branch: &branch_name,
-                message: &format!(
-                    "chore(ci): sync `{}` from template `{}`",
-                    update.path, update.template
-                ),
-                base_sha: &base_sha,
-                files: &[FileChange {
-                    path: update.path.clone(),
-                    content: update.rendered.clone(),
-                }],
-            })
-            .await?;
-
-        let pr_title = format!(
+        let title = format!(
             "chore(ci): sync `{}` from template `{}`",
             workflow_name, update.template
         );
-        let pr_body = build_pr_body(update);
+        let body = build_pr_body(update);
 
-        let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
+        match mode {
+            SyncMode::Pr => {
+                let default_branch = client.get_default_branch(owner, repo).await?;
+                let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+                let branch_name = format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
 
-        if let Some(pr) = existing {
-            client
-                .update_pr(owner, repo, pr.number, &pr_title, &pr_body)
-                .await?;
-            info!("  updated PR #{} ({})", pr.number, pr.url);
-            result.prs_updated += 1;
-        } else {
-            let pr = client
-                .create_pr(&CreatePrRequest {
-                    owner,
-                    repo,
-                    title: &pr_title,
-                    body: &pr_body,
-                    head: &branch_name,
-                    base: &default_branch,
-                    labels: &labels,
-                })
-                .await?;
-            info!("  created PR #{} ({})", pr.number, pr.url);
-            result.prs_created += 1;
+                client
+                    .create_branch(owner, repo, &branch_name, &base_sha)
+                    .await?;
+
+                client
+                    .commit_files(&CommitRequest {
+                        owner,
+                        repo,
+                        branch: &branch_name,
+                        message: &title,
+                        base_sha: &base_sha,
+                        files: &[FileChange {
+                            path: update.path.clone(),
+                            content: update.rendered.clone(),
+                        }],
+                    })
+                    .await?;
+
+                let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
+
+                if let Some(pr) = existing {
+                    client
+                        .update_pr(owner, repo, pr.number, &title, &body)
+                        .await?;
+                    info!("  updated PR #{} ({})", pr.number, pr.url);
+                    result.prs_updated += 1;
+                } else {
+                    let pr = client
+                        .create_pr(&CreatePrRequest {
+                            owner,
+                            repo,
+                            title: &title,
+                            body: &body,
+                            head: &branch_name,
+                            base: &default_branch,
+                            labels: &labels,
+                        })
+                        .await?;
+                    info!("  created PR #{} ({})", pr.number, pr.url);
+                    result.prs_created += 1;
+                }
+            }
+            SyncMode::Issue => {
+                let existing = client.find_existing_issue(owner, repo, &title).await?;
+
+                if let Some(issue) = existing {
+                    client
+                        .update_issue(owner, repo, issue.number, &body)
+                        .await?;
+                    info!("  updated issue #{} ({})", issue.number, issue.url);
+                    result.issues_updated += 1;
+                } else {
+                    let issue = client
+                        .create_issue(owner, repo, &title, &body, &labels)
+                        .await?;
+                    info!("  created issue #{} ({})", issue.number, issue.url);
+                    result.issues_created += 1;
+                }
+            }
+            SyncMode::Silent => unreachable!(),
         }
     }
 

@@ -7,7 +7,7 @@ mod sync;
 mod template;
 
 use clap::Parser;
-use cli::{Cli, Command};
+use cli::{Cli, Command, SyncMode};
 use config::Config;
 use github::GitHubClient;
 use octocrab::Octocrab;
@@ -36,11 +36,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     match &cli.command {
-        Command::Sync { .. } => cmd_sync(&cli).await?,
+        Command::Sync { .. } | Command::Drift { .. } => cmd_sync(&cli).await?,
         Command::Validate => cmd_validate(&cli)?,
         Command::ListRepos => cmd_list_repos(&cli).await?,
         Command::ListTemplates => cmd_list_templates(&cli)?,
-        Command::Drift { .. } => cmd_drift(&cli).await?,
     }
 
     Ok(())
@@ -49,15 +48,16 @@ async fn main() -> anyhow::Result<()> {
 async fn cmd_sync(cli: &Cli) -> anyhow::Result<()> {
     let config = Config::load(&cli.config)?;
     let dry_run = cli.dry_run || config.orchestrator.dry_run;
-    let filter_repo = match &cli.command {
-        Command::Sync { repo } => repo.as_deref(),
-        _ => None,
+    let (filter_repo, mode) = match &cli.command {
+        Command::Sync { repo, mode } => (repo.as_deref(), *mode),
+        Command::Drift { repo } => (repo.as_deref(), SyncMode::Silent),
+        _ => (None, SyncMode::Pr),
     };
     let templates_dir = Path::new(&config.orchestrator.templates_dir);
     let renderer = TemplateRenderer::new(templates_dir)?;
     let client = build_client(dry_run).await?;
 
-    let report = sync::run(&config, &renderer, &client, filter_repo).await?;
+    let report = sync::run(&config, &renderer, &client, filter_repo, mode).await?;
     println!("{}", report.summary());
 
     let has_errors = report.results.iter().any(|r| !r.errors.is_empty());
@@ -116,22 +116,6 @@ fn cmd_list_templates(cli: &Cli) -> anyhow::Result<()> {
     for t in renderer.list_templates() {
         println!("  - {t}");
     }
-
-    Ok(())
-}
-
-async fn cmd_drift(cli: &Cli) -> anyhow::Result<()> {
-    let config = Config::load(&cli.config)?;
-    let filter_repo = match &cli.command {
-        Command::Drift { repo } => repo.as_deref(),
-        _ => None,
-    };
-    let templates_dir = Path::new(&config.orchestrator.templates_dir);
-    let renderer = TemplateRenderer::new(templates_dir)?;
-    let client = build_client(true).await?;
-
-    let report = sync::run(&config, &renderer, &client, filter_repo).await?;
-    println!("{}", report.summary());
 
     Ok(())
 }

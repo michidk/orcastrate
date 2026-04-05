@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -22,12 +22,22 @@ pub struct Cli {
     pub verbose: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
+#[derive(Clone, Copy, Debug, Default, ValueEnum)]
+pub enum SyncMode {
+    #[default]
+    Pr,
+    Issue,
+    Silent,
+}
+
 #[derive(Subcommand)]
 pub enum Command {
     /// Sync workflows across all configured repos
     Sync {
         #[arg(long)]
         repo: Option<String>,
+        #[arg(long, value_enum, default_value_t = SyncMode::Pr)]
+        mode: SyncMode,
     },
 
     /// Validate config and templates without syncing
@@ -39,7 +49,7 @@ pub enum Command {
     /// List available templates
     ListTemplates,
 
-    /// Check drift status without creating PRs
+    /// Check drift status without creating PRs (alias for sync --mode silent)
     Drift {
         #[arg(long)]
         repo: Option<String>,

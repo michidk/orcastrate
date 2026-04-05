@@ -35,4 +35,4 @@ jobs:
       - name: Sync
         run: ./target/release/orcastrate --config orchestrator.toml sync
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ORCASTRATE_TOKEN }}

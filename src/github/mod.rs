@@ -245,6 +245,11 @@ impl GitHubClient {
             .as_str()
             .ok_or_else(|| Error::GitHub("missing sha in tree response".into()))?;
 
+        let bot_identity = serde_json::json!({
+            "name": "github-actions[bot]",
+            "email": "41898282+github-actions[bot]@users.noreply.github.com",
+        });
+
         let commit_route = format!("/repos/{}/{}/git/commits", req.owner, req.repo);
         let commit: serde_json::Value = self
             .crab
@@ -254,6 +259,8 @@ impl GitHubClient {
                     "message": req.message,
                     "tree": tree_sha,
                     "parents": [req.base_sha],
+                    "author": bot_identity,
+                    "committer": bot_identity,
                 })),
             )
             .await

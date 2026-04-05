@@ -4,10 +4,4 @@ branch_prefix = "orcastrate/sync"
 pr_label = "orcastrate"
 
 [[repos]]
-name = "myorg/service-api"
-
-[[repos]]
-name = "myorg/service-web"
-
-[[repos]]
-name = "myorg/shared-lib"
+name = "michidk/orcastrate"

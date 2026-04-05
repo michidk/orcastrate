@@ -5,20 +5,21 @@ use std::path::PathBuf;
 #[command(
     name = "orcastrate",
     about = "GitHub Actions orchestrator — template, sync, and manage workflows at org scale",
+    author,
     version
 )]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
 
-    #[arg(short, long, default_value = "orchestrator.toml")]
+    #[arg(short, long, default_value = "orchestrator.toml", global = true)]
     pub config: PathBuf,
 
-    #[arg(long, default_value_t = false)]
+    #[arg(short, long, alias = "dry", global = true)]
     pub dry_run: bool,
 
-    #[arg(short, long, default_value_t = false)]
-    pub verbose: bool,
+    #[command(flatten)]
+    pub verbose: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
 }
 
 #[derive(Subcommand)]

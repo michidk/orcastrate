@@ -242,7 +242,7 @@ async fn sync_repo(
         .collect();
 
     let commit_msg = format!(
-        "chore(orcastrate): sync {} workflow{}",
+        "chore(ci): sync {} workflow{}",
         updates.len(),
         if updates.len() == 1 { "" } else { "s" }
     );
@@ -259,11 +259,25 @@ async fn sync_repo(
         .await?;
 
     let pr_body = build_pr_body(&updates);
-    let pr_title = format!(
-        "chore(orcastrate): sync {} workflow{}",
-        updates.len(),
-        if updates.len() == 1 { "" } else { "s" }
-    );
+    let pr_title = if updates.len() == 1 {
+        let template = &updates[0].template;
+        let path = updates[0]
+            .path
+            .rsplit('/')
+            .next()
+            .unwrap_or(&updates[0].path);
+        format!("chore(ci): sync `{path}` from template `{template}`")
+    } else {
+        let names: Vec<&str> = updates
+            .iter()
+            .map(|u| u.path.rsplit('/').next().unwrap_or(&u.path))
+            .collect();
+        format!(
+            "chore(ci): sync {} workflows ({})",
+            updates.len(),
+            names.join(", ")
+        )
+    };
 
     let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
 

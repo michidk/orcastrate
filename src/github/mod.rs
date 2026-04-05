@@ -203,8 +203,11 @@ impl GitHubClient {
                     .await
                     .map_err(|e| {
                         Error::GitHub(format!(
-                            "update {} in {}/{}: {e}",
-                            req.path, req.owner, req.repo
+                            "update {} in {}/{}: {}",
+                            req.path,
+                            req.owner,
+                            req.repo,
+                            e.to_string().replace('\n', " ")
                         ))
                     })?;
             }
@@ -217,8 +220,11 @@ impl GitHubClient {
                     .await
                     .map_err(|e| {
                         Error::GitHub(format!(
-                            "create {} in {}/{}: {e}",
-                            req.path, req.owner, req.repo
+                            "create {} in {}/{}: {}",
+                            req.path,
+                            req.owner,
+                            req.repo,
+                            e.to_string().replace('\n', " ")
                         ))
                     })?;
             }

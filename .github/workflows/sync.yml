@@ -33,6 +33,6 @@ jobs:
         run: cargo build --release
 
       - name: Sync
-        run: ./target/release/orcastrate --config orchestrator.toml sync
+        run: ./target/release/orcastrate --config orchestrator.toml -vv sync
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

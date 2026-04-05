@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::diff;
-use crate::github::{CreatePrRequest, FileCommit, GitHubClient};
+use crate::github::{CommitRequest, CreatePrRequest, FileChange, GitHubClient};
 use crate::template::{frontmatter, TemplateRenderer};
 use tracing::{error, info, warn};
 
@@ -162,7 +162,7 @@ async fn sync_repo(
     for workflow in &workflows {
         let path = &workflow.path;
 
-        let (content, file_sha) = match client.get_file_content(owner, repo, path).await {
+        let (content, _blob_sha) = match client.get_file_content(owner, repo, path).await {
             Ok(c) => c,
             Err(e) => {
                 warn!("failed to get {path}: {e}");
@@ -210,7 +210,6 @@ async fn sync_repo(
                 path: path.clone(),
                 current: content,
                 rendered: full_rendered,
-                file_sha,
                 template: fm.template.clone(),
             });
         }
@@ -234,22 +233,30 @@ async fn sync_repo(
         .create_branch(owner, repo, &branch_name, &base_sha)
         .await?;
 
-    for update in &updates {
-        client
-            .commit_file(&FileCommit {
-                owner,
-                repo,
-                path: &update.path,
-                content: &update.rendered,
-                message: &format!(
-                    "orcastrate: sync {} from template '{}'",
-                    update.path, update.template
-                ),
-                branch: &branch_name,
-                existing_sha: Some(&update.file_sha),
-            })
-            .await?;
-    }
+    let file_changes: Vec<FileChange> = updates
+        .iter()
+        .map(|u| FileChange {
+            path: u.path.clone(),
+            content: u.rendered.clone(),
+        })
+        .collect();
+
+    let commit_msg = format!(
+        "orcastrate: sync {} workflow{}",
+        updates.len(),
+        if updates.len() == 1 { "" } else { "s" }
+    );
+
+    client
+        .commit_files(&CommitRequest {
+            owner,
+            repo,
+            branch: &branch_name,
+            message: &commit_msg,
+            base_sha: &base_sha,
+            files: &file_changes,
+        })
+        .await?;
 
     let pr_body = build_pr_body(&updates);
     let pr_title = format!(
@@ -290,7 +297,6 @@ struct WorkflowUpdate {
     path: String,
     current: String,
     rendered: String,
-    file_sha: String,
     template: String,
 }
 

@@ -12,14 +12,18 @@ pub struct WorkflowFile {
     pub path: String,
 }
 
-pub struct FileCommit<'a> {
+pub struct FileChange {
+    pub path: String,
+    pub content: String,
+}
+
+pub struct CommitRequest<'a> {
     pub owner: &'a str,
     pub repo: &'a str,
-    pub path: &'a str,
-    pub content: &'a str,
-    pub message: &'a str,
     pub branch: &'a str,
-    pub existing_sha: Option<&'a str>,
+    pub message: &'a str,
+    pub base_sha: &'a str,
+    pub files: &'a [FileChange],
 }
 
 pub struct CreatePrRequest<'a> {
@@ -184,51 +188,102 @@ impl GitHubClient {
         }
     }
 
-    pub async fn commit_file(&self, req: &FileCommit<'_>) -> crate::error::Result<()> {
+    pub async fn commit_files(&self, req: &CommitRequest<'_>) -> crate::error::Result<()> {
         if self.dry_run {
-            info!(
-                "[dry-run] would update {} in {}/{} on {}",
-                req.path, req.owner, req.repo, req.branch
-            );
+            for file in req.files {
+                info!(
+                    "[dry-run] would update {} in {}/{}",
+                    file.path, req.owner, req.repo
+                );
+            }
             return Ok(());
         }
 
-        match req.existing_sha {
-            Some(sha) => {
-                self.crab
-                    .repos(req.owner, req.repo)
-                    .update_file(req.path, req.message, req.content, sha)
-                    .branch(req.branch)
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        Error::GitHub(format!(
-                            "update {} in {}/{}: {}",
-                            req.path,
-                            req.owner,
-                            req.repo,
-                            e.to_string().replace('\n', " ")
-                        ))
-                    })?;
-            }
-            None => {
-                self.crab
-                    .repos(req.owner, req.repo)
-                    .create_file(req.path, req.message, req.content)
-                    .branch(req.branch)
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        Error::GitHub(format!(
-                            "create {} in {}/{}: {}",
-                            req.path,
-                            req.owner,
-                            req.repo,
-                            e.to_string().replace('\n', " ")
-                        ))
-                    })?;
-            }
-        }
+        let tree_items: Vec<serde_json::Value> = req
+            .files
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "path": f.path,
+                    "mode": "100644",
+                    "type": "blob",
+                    "content": f.content,
+                })
+            })
+            .collect();
+
+        let tree_route = format!("/repos/{}/{}/git/trees", req.owner, req.repo);
+        let tree: serde_json::Value = self
+            .crab
+            .post(
+                &tree_route,
+                Some(&serde_json::json!({
+                    "base_tree": req.base_sha,
+                    "tree": tree_items,
+                })),
+            )
+            .await
+            .map_err(|e| {
+                Error::GitHub(format!(
+                    "create tree in {}/{}: {}",
+                    req.owner,
+                    req.repo,
+                    e.to_string().replace('\n', " ")
+                ))
+            })?;
+
+        let tree_sha = tree["sha"]
+            .as_str()
+            .ok_or_else(|| Error::GitHub("missing sha in tree response".into()))?;
+
+        let commit_route = format!("/repos/{}/{}/git/commits", req.owner, req.repo);
+        let commit: serde_json::Value = self
+            .crab
+            .post(
+                &commit_route,
+                Some(&serde_json::json!({
+                    "message": req.message,
+                    "tree": tree_sha,
+                    "parents": [req.base_sha],
+                })),
+            )
+            .await
+            .map_err(|e| {
+                Error::GitHub(format!(
+                    "create commit in {}/{}: {}",
+                    req.owner,
+                    req.repo,
+                    e.to_string().replace('\n', " ")
+                ))
+            })?;
+
+        let commit_sha = commit["sha"]
+            .as_str()
+            .ok_or_else(|| Error::GitHub("missing sha in commit response".into()))?;
+
+        let ref_route = format!(
+            "/repos/{}/{}/git/refs/heads/{}",
+            req.owner, req.repo, req.branch
+        );
+        let _: serde_json::Value = self
+            .crab
+            .patch(
+                &ref_route,
+                Some(&serde_json::json!({
+                    "sha": commit_sha,
+                    "force": true,
+                })),
+            )
+            .await
+            .map_err(|e| {
+                Error::GitHub(format!(
+                    "update ref {} in {}/{}: {}",
+                    req.branch,
+                    req.owner,
+                    req.repo,
+                    e.to_string().replace('\n', " ")
+                ))
+            })?;
 
         Ok(())
     }

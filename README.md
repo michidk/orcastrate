@@ -217,7 +217,7 @@ Install it on your org, then set:
 
 When orcastrate detects drift, it opens **one PR per workflow file**:
 - Branch: `orcastrate/sync/{workflow-name}` (e.g. `orcastrate/sync/pr-title`)
-- Title: `chore(ci): sync \`pr-title.yml\` from template \`pr-title\``
+- Title: ``chore(ci): sync `pr-title` from template `pr-title` ``
 - Unified diff in the PR body
 - The `orcastrate` label for easy filtering
 

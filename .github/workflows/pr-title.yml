@@ -1,3 +1,10 @@
+# @orcastrate
+# template: pr-title
+# params:
+#   runner: ubuntu-24.04
+#   action_version: v3
+# @end-orcastrate
+
 name: Check PR title
 
 on: [pull_request_target]

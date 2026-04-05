@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [{{ default_branch | default(value="main") }}]
+  pull_request:
+    branches: [{{ default_branch | default(value="main") }}]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --all-features
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-features
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --all-features -- -D warnings
+{% if features %}
+  feature-check:
+    name: Feature Matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        feature: {{ features | json_encode() }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --features ${{ "{{ matrix.feature }}" }}
+{% endif %}

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [{{ default_branch | default(value="main") }}]
+  pull_request:
+    branches: [{{ default_branch | default(value="main") }}]
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: {{ node_versions | default(value='["20"]') }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ "{{ matrix.node-version }}" }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ "{{ matrix.node-version }}" }}
+          cache: {{ package_manager | default(value="npm") }}
+
+      - run: {{ package_manager | default(value="npm") }} ci
+
+      - run: {{ package_manager | default(value="npm") }} run build --if-present
+
+      - run: {{ package_manager | default(value="npm") }} test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: {{ node_versions | default(value='["20"]') | first | default(value="20") }}
+          cache: {{ package_manager | default(value="npm") }}
+      - run: {{ package_manager | default(value="npm") }} ci
+      - run: {{ package_manager | default(value="npm") }} run lint --if-present

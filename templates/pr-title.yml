@@ -1,0 +1,13 @@
+name: Check PR title
+
+on: [pull_request_target]
+
+jobs:
+  lint:
+    runs-on: {{ runner | default(value="ubuntu-24.04") }}
+    permissions:
+      statuses: write
+    steps:
+      - uses: aslafy-z/conventional-pr-title-action@{{ action_version | default(value="v3") }}
+        env:
+          GITHUB_TOKEN: ${{ "{{ secrets.GITHUB_TOKEN }}" }}

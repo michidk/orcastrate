@@ -107,13 +107,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo install orcastrate
-      - run: orcastrate --config orchestrator.toml sync
-        env:
-          ORCASTRATE_TOKEN: ${{ secrets.ORCASTRATE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: michidk/orcastrate@v0
+        with:
+          orcastrate-token: ${{ secrets.ORCASTRATE_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### 5. Add frontmatter to target repos
@@ -225,17 +222,9 @@ If a PR already exists for the same workflow, it updates the existing PR instead
 
 ### Example PR
 
+See [#6](https://github.com/michidk/orcastrate/pull/6) for a real example.
+
 [![Example PR](.github/images/screenshot.png)](https://github.com/michidk/orcastrate/pull/6)
-
-## Design decisions
-
-- **No external server** — runs entirely within GitHub Actions
-- **State in git** — config and templates are version-controlled, auditable
-- **PR-based updates** — never force-pushes to your default branch
-- **One PR per workflow** — review and merge each change independently
-- **Opt-in per file** — only workflows with `@orcastrate` frontmatter are managed
-- **Template validation** — rendered output is validated as YAML before opening a PR
-- **Conventional commits** — PR titles and commits follow conventional commit format
 
 ## License
 

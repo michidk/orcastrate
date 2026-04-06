@@ -1,4 +1,4 @@
-name: "Orcastrate"
+name: "Action Orchestrator"
 description: "GitHub Actions orchestrator — template, sync, and manage workflows at org scale"
 
 inputs:

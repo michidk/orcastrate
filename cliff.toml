@@ -18,6 +18,9 @@ body = """
 {% endfor %}\n
 """
 trim = true
+postprocessors = [
+    { pattern = "^## \\[.*\\] - .*\n", replace = "" },
+]
 
 [git]
 conventional_commits = true

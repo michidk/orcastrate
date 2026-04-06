@@ -27,11 +27,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.ORCASTRATE_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-edit
-        run: cargo install cargo-edit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit
 
       - name: Get current version
         id: current

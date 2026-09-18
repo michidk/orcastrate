@@ -19,7 +19,7 @@ env:
 jobs:
   changelog:
     name: Generate changelog
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   build-docker:
     name: Build & push Docker image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v6
 
@@ -139,7 +139,7 @@ jobs:
 
   release:
     name: Create GitHub release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [changelog, build-binaries, build-docker]
     steps:
       - uses: actions/checkout@v6
@@ -164,7 +164,7 @@ jobs:
 
   update-major-tag:
     name: Update major version tag
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: release
     steps:
       - uses: actions/checkout@v6

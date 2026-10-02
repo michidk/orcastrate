@@ -11,7 +11,8 @@ pub struct TemplateRenderer {
 impl TemplateRenderer {
     pub fn new(templates_dir: &Path) -> crate::error::Result<Self> {
         let glob = format!("{}/**/*.yml", templates_dir.display());
-        let tera = Tera::new(&glob).map_err(|e| {
+        let mut tera = Tera::new();
+        tera.load_from_glob(&glob).map_err(|e| {
             Error::Template(format!(
                 "failed to load templates from {}: {e}",
                 templates_dir.display()
@@ -35,7 +36,7 @@ impl TemplateRenderer {
                     template: template_id.to_string(),
                     message: format!("failed to convert param '{key}': {e}"),
                 })?;
-            context.insert(key, &json_value);
+            context.insert(key.clone(), &json_value);
         }
 
         let rendered = self

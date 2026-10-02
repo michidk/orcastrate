@@ -19,11 +19,11 @@ env:
 jobs:
   changelog:
     name: Generate changelog
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       release_body: ${{ steps.git-cliff.outputs.content }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -60,7 +60,7 @@ jobs:
             os: macos-latest
             target: aarch64-apple-darwin
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -102,9 +102,9 @@ jobs:
 
   build-docker:
     name: Build & push Docker image
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -139,10 +139,10 @@ jobs:
 
   release:
     name: Create GitHub release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [changelog, build-binaries, build-docker]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -164,17 +164,17 @@ jobs:
 
   update-major-tag:
     name: Update major version tag
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Extract major version
         id: version
         run: echo "major=$(echo '${{ github.ref_name }}' | cut -d. -f1)" >> $GITHUB_OUTPUT
 
       - name: Update floating major tag
-        uses: richardsimko/update-tag@v1
+        uses: richardsimko/update-tag@v3
         with:
           tag_name: ${{ steps.version.outputs.major }}
         env:

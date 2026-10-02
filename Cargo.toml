@@ -23,7 +23,7 @@ thiserror = "2"
 log = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-jsonwebtoken = "10"
+jsonwebtoken = "11"
 
 [dev-dependencies]
 tempfile = "3"

@@ -14,6 +14,16 @@
         "cargo"
       ],
       "groupName": "All Cargo Dependencies"
+    },
+    {
+      "description": "octocrab 0.54 depends on jsonwebtoken ^10; v11 breaks the EncodingKey type passed to Octocrab::app(). Remove once octocrab supports v11.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchPackageNames": [
+        "jsonwebtoken"
+      ],
+      "allowedVersions": "<11"
     }
   ]
 }

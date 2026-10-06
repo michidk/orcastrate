@@ -68,3 +68,20 @@ fn validate_yaml(content: &str, template_id: &str) -> crate::error::Result<()> {
     })?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renders_rust_feature_matrix() {
+        let templates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
+        let renderer = TemplateRenderer::new(&templates_dir).unwrap();
+        let params: HashMap<String, serde_norway::Value> =
+            serde_norway::from_str("features:\n  - serde\n  - async\n").unwrap();
+
+        let rendered = renderer.render("rust-ci", &params).unwrap();
+
+        assert!(rendered.contains("feature: [\"serde\", \"async\"]"));
+    }
+}

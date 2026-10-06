@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        feature: {{ features | json_encode() }}
+        feature: {{ features }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@{{ toolchain | default(value="stable") }}

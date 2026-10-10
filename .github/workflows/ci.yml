@@ -3,12 +3,20 @@ name: CI
 on:
   push:
     paths:
+      - "action.yml"
+      - "action-entrypoint.sh"
+      - "Dockerfile"
+      - "tests/**"
       - "Cargo.lock"
       - "Cargo.toml"
       - "rust-toolchain.toml"
       - "src/**"
   pull_request:
     paths:
+      - "action.yml"
+      - "action-entrypoint.sh"
+      - "Dockerfile"
+      - "tests/**"
       - "Cargo.lock"
       - "Cargo.toml"
       - "rust-toolchain.toml"
@@ -41,6 +49,9 @@ jobs:
 
       - name: Test
         run: cargo test -- --nocapture --quiet
+
+      - name: Test Action arguments
+        run: sh tests/action-entrypoint.sh
 
   lint:
     name: Lint

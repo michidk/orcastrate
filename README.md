@@ -135,12 +135,22 @@ orcastrate sync                  # sync all repos, open PRs for drift
 orcastrate sync --dry-run        # see what would change without modifying anything
 orcastrate sync --repo org/repo  # sync a single repo
 orcastrate validate              # check config + templates are valid
+orcastrate render workflow.yml   # render a local managed workflow to stdout
 orcastrate drift                 # check drift status without creating PRs
 orcastrate list-repos            # show configured + discovered repos
 orcastrate list-templates        # show available templates
 ```
 
 Verbosity: `-v` for debug, `-vv` for trace, `-q` for quiet.
+
+Use `render` with a workflow containing Orcastrate frontmatter to validate its
+parameters and rendered YAML without GitHub credentials. Pipe its output to
+`actionlint -` to check GitHub Actions syntax. `validate` checks template syntax
+only; it cannot validate every possible parameter combination.
+
+The GitHub Action builds the Dockerfile from the selected Action revision.
+Pin the Action to a commit SHA to pin its source instead of following a mutable
+container image. The first build is slower than downloading a prebuilt image.
 
 ## Configuration
 

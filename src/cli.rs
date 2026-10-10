@@ -43,6 +43,9 @@ pub enum Command {
     /// Validate config and templates without syncing
     Validate,
 
+    /// Render a managed workflow to stdout without contacting GitHub
+    Render { workflow: PathBuf },
+
     /// List all configured/discovered repos
     ListRepos,
 

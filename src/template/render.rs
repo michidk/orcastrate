@@ -58,6 +58,15 @@ impl TemplateRenderer {
             .map(|s| s.to_string())
             .collect()
     }
+
+    pub fn render_workflow(&self, content: &str) -> anyhow::Result<String> {
+        let parsed = super::frontmatter::parse(content)?;
+        let fm = parsed
+            .frontmatter
+            .ok_or_else(|| anyhow::anyhow!("workflow has no Orcastrate frontmatter"))?;
+        let rendered = self.render(&fm.template, &fm.params)?;
+        Ok(format!("{}\n\n{rendered}", parsed.raw_block.unwrap()))
+    }
 }
 
 fn validate_yaml(content: &str, template_id: &str) -> crate::error::Result<()> {
@@ -83,5 +92,21 @@ mod tests {
         let rendered = renderer.render("rust-ci", &params).unwrap();
 
         assert!(rendered.contains("feature: [\"serde\", \"async\"]"));
+    }
+
+    #[test]
+    fn renders_managed_workflow_and_rejects_missing_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("test.yml"), "name: {{ name }}\n").unwrap();
+        let renderer = TemplateRenderer::new(dir.path()).unwrap();
+        let header =
+            "# @orcastrate\n# template: test\n# params:\n#   name: Example\n# @end-orcastrate";
+        assert_eq!(
+            renderer
+                .render_workflow(&format!("{header}\n\nold content"))
+                .unwrap(),
+            format!("{header}\n\nname: Example\n")
+        );
+        assert!(renderer.render_workflow("name: Unmanaged\n").is_err());
     }
 }

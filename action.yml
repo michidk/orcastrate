@@ -37,14 +37,13 @@ inputs:
 
 runs:
   using: "docker"
-  image: "docker://ghcr.io/michidk/orcastrate:latest"
+  image: "Dockerfile"
+  entrypoint: "/usr/local/bin/action-entrypoint.sh"
   args:
-    - "--config"
     - ${{ inputs.config }}
-    - ${{ inputs.dry-run == 'true' && '--dry-run' || '' }}
     - ${{ inputs.command }}
-    - "--mode"
     - ${{ inputs.mode }}
+    - ${{ inputs.dry-run }}
   env:
     ORCASTRATE_TOKEN: ${{ inputs.orcastrate-token }}
     GITHUB_TOKEN: ${{ inputs.github-token }}

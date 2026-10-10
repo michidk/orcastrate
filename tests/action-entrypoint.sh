@@ -2,7 +2,7 @@
 set -eu
 test_dir=$(mktemp -d)
 trap 'rm -r "$test_dir"' EXIT
-ln -s /bin/echo "$test_dir/orcastrate"
+ln -s "$PWD/tests/fixtures/orcastrate" "$test_dir/orcastrate"
 export PATH="$test_dir:$PATH"
 actual=$(sh action-entrypoint.sh orchestrator.toml validate pr false)
 [ "$actual" = '--config orchestrator.toml validate' ]

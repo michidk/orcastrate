@@ -39,6 +39,12 @@ async fn main() -> anyhow::Result<()> {
     match &cli.command {
         Command::Sync { .. } | Command::Drift { .. } => cmd_sync(&cli).await?,
         Command::Validate => cmd_validate(&cli)?,
+        Command::Render { workflow } => {
+            let config = Config::load(&cli.config)?;
+            let renderer = TemplateRenderer::new(Path::new(&config.orchestrator.templates_dir))?;
+            let content = std::fs::read_to_string(workflow)?;
+            print!("{}", renderer.render_workflow(&content)?);
+        }
         Command::ListRepos => cmd_list_repos(&cli).await?,
         Command::ListTemplates => cmd_list_templates(&cli)?,
     }

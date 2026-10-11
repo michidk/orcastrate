@@ -46,6 +46,7 @@ impl TemplateRenderer {
                 template: template_id.to_string(),
                 message: format!("{e}"),
             })?;
+        let rendered = format!("{}\n", rendered.trim_end());
 
         validate_yaml(&rendered, template_id)?;
 
@@ -83,5 +84,9 @@ mod tests {
         let rendered = renderer.render("rust-ci", &params).unwrap();
 
         assert!(rendered.contains("feature: [\"serde\", \"async\"]"));
+        assert!(
+            rendered.ends_with('\n') && !rendered.ends_with("\n\n"),
+            "rendered workflow must end with exactly one newline"
+        );
     }
 }

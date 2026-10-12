@@ -162,6 +162,7 @@ templates_dir = "templates"        # where templates live
 branch_prefix = "orcastrate/sync"  # PR branch prefix
 pr_label = "orcastrate"            # label added to PRs
 dry_run = false                    # global dry-run toggle
+ignore_action_versions = true      # leave action refs to Renovate (default)
 
 [[repos]]
 name = "myorg/repo-a"
@@ -191,6 +192,26 @@ Templates use [Tera](https://keats.github.io/tera/) (Jinja2-style) syntax. Param
 ```
 
 Templates can use defaults: `{{ toolchain | default(value="stable") }}`
+
+### Action versions and Renovate
+
+By default, Orcastrate preserves existing action tags, SHA pins, and comments
+on `uses:` lines. Version-only differences do not create drift, and PRs for
+other workflow changes keep those refs. This also applies to reusable workflow
+refs. New actions and changes to an action's repository or path still use the
+template's ref.
+
+Set `ignore_action_versions = false` under `[orchestrator]` to apply template
+versions, including intentional upgrades or downgrades. The setting applies to
+sync, issue, and drift-check modes. The `render` command still outputs template
+versions so you can apply them manually.
+
+Refs match by job and action path; repeated uses of the same action match by
+step ID when available, otherwise in order. Preservation requires single-line,
+block-style `uses:` fields. If a workflow's layout cannot be matched safely,
+Orcastrate reports an error and
+skips it rather than risking a version rollback. Container images and versions
+in `with:`, `env:`, or `run:` remain managed by the template.
 
 ## Authentication
 

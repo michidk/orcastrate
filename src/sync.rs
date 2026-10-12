@@ -338,6 +338,20 @@ async fn sync_repo(
                 None => rendered,
             };
 
+            let full_rendered = if config.orchestrator.ignore_action_versions {
+                match crate::template::versions::preserve_action_versions(&content, &full_rendered)
+                {
+                    Ok(rendered) => rendered,
+                    Err(e) => {
+                        gha::warning(&format!("{path}: {e}"));
+                        result.errors.push(format!("{path}: {e}"));
+                        continue;
+                    }
+                }
+            } else {
+                full_rendered
+            };
+
             if diff::has_drifted(&content, &full_rendered) {
                 let summary = diff::diff_summary(&content, &full_rendered);
                 info!("  drift detected in {path} ({summary})");

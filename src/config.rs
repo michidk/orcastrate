@@ -21,6 +21,8 @@ pub struct OrchestratorConfig {
     pub pr_label: String,
     #[serde(default)]
     pub dry_run: bool,
+    #[serde(default = "default_enabled")]
+    pub ignore_action_versions: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,6 +111,20 @@ name = "myorg/myrepo"
         assert_eq!(config.repos.len(), 1);
         assert_eq!(config.repos[0].name, "myorg/myrepo");
         assert_eq!(config.orchestrator.branch_prefix, "orcastrate/sync");
+        assert!(config.orchestrator.ignore_action_versions);
+    }
+
+    #[test]
+    fn action_versions_can_be_managed_by_templates() {
+        let f = write_temp_config(
+            "[orchestrator]\ntemplates_dir = 'templates'\nignore_action_versions = false\n\n[[repos]]\nname = 'org/repo'\n",
+        );
+        assert!(
+            !Config::load(f.path())
+                .unwrap()
+                .orchestrator
+                .ignore_action_versions
+        );
     }
 
     #[test]

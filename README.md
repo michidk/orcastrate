@@ -148,9 +148,9 @@ parameters and rendered YAML without GitHub credentials. Pipe its output to
 `actionlint -` to check GitHub Actions syntax. `validate` checks template syntax
 only; it cannot validate every possible parameter combination.
 
-The GitHub Action builds the Dockerfile from the selected Action revision.
-Pin the Action to a commit SHA to pin its source instead of following a mutable
-container image. The first build is slower than downloading a prebuilt image.
+The GitHub Action downloads `ghcr.io/michidk/orcastrate:main`, which is built
+and tested on pushes to `main`. Consumer workflows do not compile Orcastrate.
+The image tag is mutable: pinning the Action revision does not pin its runtime.
 
 ## Configuration
 

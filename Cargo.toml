@@ -1,6 +1,6 @@
 [package]
 name = "orcastrate"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "GitHub Actions orchestrator - template, sync, and manage workflows at org scale"
 license = "MIT"

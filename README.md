@@ -134,6 +134,7 @@ name: CI
 orcastrate sync                  # sync all repos, open PRs for drift
 orcastrate sync --dry-run        # see what would change without modifying anything
 orcastrate sync --repo org/repo  # sync a single repo
+orcastrate sync --resync conflicting  # only refresh conflicting open sync PRs
 orcastrate validate              # check config + templates are valid
 orcastrate render workflow.yml   # render a local managed workflow to stdout
 orcastrate drift                 # check drift status without creating PRs
@@ -163,6 +164,7 @@ branch_prefix = "orcastrate/sync"  # PR branch prefix
 pr_label = "orcastrate"            # label added to PRs
 dry_run = false                    # global dry-run toggle
 ignore_action_versions = true      # leave action refs to Renovate (default)
+resync = "all"                     # refresh open sync PRs: never, conflicting, or all
 
 [[repos]]
 name = "myorg/repo-a"

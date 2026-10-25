@@ -1,9 +1,10 @@
 use crate::cli::SyncMode;
-use crate::config::Config;
+use crate::config::{Config, ResyncPolicy};
 use crate::diff;
 use crate::gha;
 use crate::github::{CommitRequest, CreatePrRequest, FileChange, GitHubClient};
 use crate::template::{frontmatter, TemplateRenderer};
+use std::collections::{HashMap, HashSet};
 use tracing::{error, info, warn};
 
 #[derive(Debug)]
@@ -190,6 +191,7 @@ pub async fn run(
     client: &GitHubClient,
     filter_repo: Option<&str>,
     mode: SyncMode,
+    resync: ResyncPolicy,
 ) -> crate::error::Result<SyncReport> {
     let repos = resolve_repos(config, client, filter_repo).await?;
     info!("syncing {} repos", repos.len());
@@ -197,7 +199,7 @@ pub async fn run(
     let mut results = Vec::new();
 
     for repo_name in &repos {
-        match sync_repo(config, renderer, client, repo_name, mode).await {
+        match sync_repo(config, renderer, client, repo_name, mode, resync).await {
             Ok(r) => results.push(r),
             Err(e) => {
                 error!("failed to sync {repo_name}: {e}");
@@ -267,6 +269,7 @@ async fn sync_repo(
     client: &GitHubClient,
     repo_name: &str,
     mode: SyncMode,
+    resync: ResyncPolicy,
 ) -> crate::error::Result<SyncResult> {
     let (owner, repo) = repo_name
         .split_once('/')
@@ -292,6 +295,7 @@ async fn sync_repo(
         result.workflows_checked = workflows.len();
 
         let mut updates: Vec<WorkflowUpdate> = Vec::new();
+        let mut managed: HashMap<String, WorkflowUpdate> = HashMap::new();
 
         for workflow in &workflows {
             let path = &workflow.path;
@@ -352,6 +356,16 @@ async fn sync_repo(
                 full_rendered
             };
 
+            managed.insert(
+                path.clone(),
+                WorkflowUpdate {
+                    path: path.clone(),
+                    current: content.clone(),
+                    rendered: full_rendered.clone(),
+                    template: fm.template.clone(),
+                },
+            );
+
             if diff::has_drifted(&content, &full_rendered) {
                 let summary = diff::diff_summary(&content, &full_rendered);
                 info!("  drift detected in {path} ({summary})");
@@ -365,101 +379,167 @@ async fn sync_repo(
             }
         }
 
-        if updates.is_empty() {
+        if updates.is_empty()
+            && !(matches!(mode, SyncMode::Pr) && !matches!(resync, ResyncPolicy::Never))
+        {
             info!("{repo_name}: all workflows in sync");
             return Ok(result);
         }
 
-        result.drifted = updates.len();
+        if !updates.is_empty() {
+            result.drifted = updates.len();
 
-        if matches!(mode, SyncMode::Silent) {
-            return Ok(result);
-        }
+            if matches!(mode, SyncMode::Silent) {
+                return Ok(result);
+            }
 
-        let labels = vec![config.orchestrator.pr_label.clone()];
+            let labels = vec![config.orchestrator.pr_label.clone()];
 
-        for update in &updates {
-            let workflow_name = update
-                .path
-                .rsplit('/')
-                .next()
-                .unwrap_or(&update.path)
-                .trim_end_matches(".yml")
-                .trim_end_matches(".yaml");
+            for update in &updates {
+                let workflow_name = update
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&update.path)
+                    .trim_end_matches(".yml")
+                    .trim_end_matches(".yaml");
 
-            let title = format!(
-                "chore(ci): sync `{}` from template `{}`",
-                workflow_name, update.template
-            );
-            let body = build_pr_body(update);
+                let title = format!(
+                    "chore(ci): sync `{}` from template `{}`",
+                    workflow_name, update.template
+                );
+                let body = build_pr_body(update);
 
-            match mode {
-                SyncMode::Pr => {
-                    let default_branch = client.get_default_branch(owner, repo).await?;
-                    let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
-                    let branch_name =
-                        format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
+                match mode {
+                    SyncMode::Pr => {
+                        let default_branch = client.get_default_branch(owner, repo).await?;
+                        let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+                        let branch_name =
+                            format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
 
-                    client
-                        .create_branch(owner, repo, &branch_name, &base_sha)
-                        .await?;
-
-                    client
-                        .commit_files(&CommitRequest {
-                            owner,
-                            repo,
-                            branch: &branch_name,
-                            message: &title,
-                            base_sha: &base_sha,
-                            files: &[FileChange {
-                                path: update.path.clone(),
-                                content: update.rendered.clone(),
-                            }],
-                        })
-                        .await?;
-
-                    let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
-
-                    if let Some(pr) = existing {
                         client
-                            .update_pr(owner, repo, pr.number, &title, &body)
+                            .create_branch(owner, repo, &branch_name, &base_sha)
                             .await?;
-                        info!("  updated PR #{} ({})", pr.number, pr.url);
-                        result.prs_updated += 1;
-                    } else {
-                        let pr = client
-                            .create_pr(&CreatePrRequest {
+
+                        client
+                            .commit_files(&CommitRequest {
                                 owner,
                                 repo,
-                                title: &title,
-                                body: &body,
-                                head: &branch_name,
-                                base: &default_branch,
-                                labels: &labels,
+                                branch: &branch_name,
+                                message: &title,
+                                base_sha: &base_sha,
+                                files: &[FileChange {
+                                    path: update.path.clone(),
+                                    content: update.rendered.clone(),
+                                }],
                             })
                             .await?;
-                        info!("  created PR #{} ({})", pr.number, pr.url);
-                        result.prs_created += 1;
-                    }
-                }
-                SyncMode::Issue => {
-                    let existing = client.find_existing_issue(owner, repo, &title).await?;
 
-                    if let Some(issue) = existing {
-                        client
-                            .update_issue(owner, repo, issue.number, &body)
-                            .await?;
-                        info!("  updated issue #{} ({})", issue.number, issue.url);
-                        result.issues_updated += 1;
-                    } else {
-                        let issue = client
-                            .create_issue(owner, repo, &title, &body, &labels)
-                            .await?;
-                        info!("  created issue #{} ({})", issue.number, issue.url);
-                        result.issues_created += 1;
+                        let existing = client.find_existing_pr(owner, repo, &branch_name).await?;
+
+                        if let Some(pr) = existing {
+                            client
+                                .update_pr(owner, repo, pr.number, &title, &body)
+                                .await?;
+                            info!("  updated PR #{} ({})", pr.number, pr.url);
+                            result.prs_updated += 1;
+                        } else {
+                            let pr = client
+                                .create_pr(&CreatePrRequest {
+                                    owner,
+                                    repo,
+                                    title: &title,
+                                    body: &body,
+                                    head: &branch_name,
+                                    base: &default_branch,
+                                    labels: &labels,
+                                })
+                                .await?;
+                            info!("  created PR #{} ({})", pr.number, pr.url);
+                            result.prs_created += 1;
+                        }
                     }
+                    SyncMode::Issue => {
+                        let existing = client.find_existing_issue(owner, repo, &title).await?;
+
+                        if let Some(issue) = existing {
+                            client
+                                .update_issue(owner, repo, issue.number, &body)
+                                .await?;
+                            info!("  updated issue #{} ({})", issue.number, issue.url);
+                            result.issues_updated += 1;
+                        } else {
+                            let issue = client
+                                .create_issue(owner, repo, &title, &body, &labels)
+                                .await?;
+                            info!("  created issue #{} ({})", issue.number, issue.url);
+                            result.issues_created += 1;
+                        }
+                    }
+                    SyncMode::Silent => unreachable!(),
                 }
-                SyncMode::Silent => unreachable!(),
+            }
+        }
+
+        if matches!(mode, SyncMode::Pr) && !matches!(resync, ResyncPolicy::Never) {
+            let refreshed: HashSet<String> =
+                updates.iter().map(|update| update.path.clone()).collect();
+            let open_prs = client
+                .list_open_sync_prs(owner, repo, &config.orchestrator.branch_prefix)
+                .await?;
+
+            for pr in open_prs {
+                let workflow_name = pr
+                    .head_branch
+                    .strip_prefix(&format!("{}/", config.orchestrator.branch_prefix))
+                    .unwrap_or_default();
+                let workflow_path = managed
+                    .keys()
+                    .find(|path| {
+                        path.rsplit('/').next().is_some_and(|name| {
+                            name.trim_end_matches(".yml").trim_end_matches(".yaml") == workflow_name
+                        })
+                    })
+                    .cloned();
+                let Some(workflow_path) = workflow_path else {
+                    continue;
+                };
+                if refreshed.contains(&workflow_path)
+                    || (matches!(resync, ResyncPolicy::Conflicting) && !is_conflicting(&pr))
+                {
+                    continue;
+                }
+
+                let update = managed
+                    .get(&workflow_path)
+                    .expect("managed workflow exists");
+                let default_branch = client.get_default_branch(owner, repo).await?;
+                let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+                client
+                    .create_branch(owner, repo, &pr.head_branch, &base_sha)
+                    .await?;
+                let title = format!(
+                    "chore(ci): sync `{}` from template `{}`",
+                    workflow_name, update.template
+                );
+                client
+                    .commit_files(&CommitRequest {
+                        owner,
+                        repo,
+                        branch: &pr.head_branch,
+                        message: &title,
+                        base_sha: &base_sha,
+                        files: &[FileChange {
+                            path: update.path.clone(),
+                            content: update.rendered.clone(),
+                        }],
+                    })
+                    .await?;
+                client
+                    .update_pr(owner, repo, pr.number, &title, &build_pr_body(update))
+                    .await?;
+                info!("  resynced PR #{} ({})", pr.number, pr.url);
+                result.prs_updated += 1;
             }
         }
 
@@ -469,6 +549,14 @@ async fn sync_repo(
 
     gha::endgroup();
     outcome
+}
+
+fn is_conflicting(pr: &crate::github::OpenSyncPr) -> bool {
+    pr.mergeable == Some(false)
+        || matches!(
+            pr.mergeable_state,
+            Some(octocrab::models::pulls::MergeableState::Dirty)
+        )
 }
 
 struct WorkflowUpdate {

@@ -55,16 +55,24 @@ async fn main() -> anyhow::Result<()> {
 async fn cmd_sync(cli: &Cli) -> anyhow::Result<()> {
     let config = Config::load(&cli.config)?;
     let dry_run = cli.dry_run || config.orchestrator.dry_run;
-    let (filter_repo, mode) = match &cli.command {
-        Command::Sync { repo, mode } => (repo.as_deref(), *mode),
-        Command::Drift { repo } => (repo.as_deref(), SyncMode::Silent),
-        _ => (None, SyncMode::Pr),
+    let (filter_repo, mode, resync) = match &cli.command {
+        Command::Sync { repo, mode, resync } => (
+            repo.as_deref(),
+            *mode,
+            resync.unwrap_or(config.orchestrator.resync),
+        ),
+        Command::Drift { repo } => (
+            repo.as_deref(),
+            SyncMode::Silent,
+            config::ResyncPolicy::Never,
+        ),
+        _ => (None, SyncMode::Pr, config.orchestrator.resync),
     };
     let templates_dir = Path::new(&config.orchestrator.templates_dir);
     let renderer = TemplateRenderer::new(templates_dir)?;
     let client = build_client(dry_run).await?;
 
-    let report = sync::run(&config, &renderer, &client, filter_repo, mode).await?;
+    let report = sync::run(&config, &renderer, &client, filter_repo, mode, resync).await?;
     println!("{}", report.summary());
     gha::write_summary(&report.summary_markdown());
 

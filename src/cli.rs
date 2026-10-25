@@ -1,3 +1,4 @@
+use crate::config::ResyncPolicy;
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
@@ -38,6 +39,9 @@ pub enum Command {
         repo: Option<String>,
         #[arg(long, value_enum, default_value_t = SyncMode::Pr)]
         mode: SyncMode,
+        /// Resync existing Orcastrate PRs according to this policy
+        #[arg(long, value_enum)]
+        resync: Option<ResyncPolicy>,
     },
 
     /// Validate config and templates without syncing

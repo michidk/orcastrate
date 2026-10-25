@@ -2,6 +2,7 @@
 templates_dir = "templates"
 branch_prefix = "orcastrate/sync"
 pr_label = "orcastrate"
+resync = "all"
 
 [[repos]]
 name = "michidk/orcastrate"

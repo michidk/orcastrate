@@ -46,6 +46,14 @@ pub struct PrInfo {
     pub url: String,
 }
 
+pub struct OpenSyncPr {
+    pub number: u64,
+    pub url: String,
+    pub head_branch: String,
+    pub mergeable: Option<bool>,
+    pub mergeable_state: Option<octocrab::models::pulls::MergeableState>,
+}
+
 impl GitHubClient {
     pub fn new(
         crab: Octocrab,
@@ -335,6 +343,48 @@ impl GitHubClient {
             number: pr.number,
             url: pr.html_url.map(|u| u.to_string()).unwrap_or_default(),
         }))
+    }
+
+    pub async fn list_open_sync_prs(
+        &self,
+        owner: &str,
+        repo: &str,
+        branch_prefix: &str,
+    ) -> crate::error::Result<Vec<OpenSyncPr>> {
+        let prs = self
+            .pr_client()
+            .pulls(owner, repo)
+            .list()
+            .state(octocrab::params::State::Open)
+            .per_page(100)
+            .send()
+            .await
+            .map_err(|e| Error::GitHub(format!("list PRs for {owner}/{repo}: {e}")))?;
+
+        let prefix = format!("{branch_prefix}/");
+        let mut result = Vec::new();
+        for pr in prs.items {
+            let head_branch = pr.head.ref_field;
+            if !head_branch.starts_with(&prefix) {
+                continue;
+            }
+            let details = self
+                .pr_client()
+                .pulls(owner, repo)
+                .get(pr.number)
+                .await
+                .map_err(|e| {
+                    Error::GitHub(format!("get PR #{} for {owner}/{repo}: {e}", pr.number))
+                })?;
+            result.push(OpenSyncPr {
+                number: details.number,
+                url: details.html_url.map(|u| u.to_string()).unwrap_or_default(),
+                head_branch,
+                mergeable: details.mergeable,
+                mergeable_state: details.mergeable_state,
+            });
+        }
+        Ok(result)
     }
 
     pub async fn create_pr(&self, req: &CreatePrRequest<'_>) -> crate::error::Result<PrInfo> {

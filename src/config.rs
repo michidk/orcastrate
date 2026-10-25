@@ -1,3 +1,4 @@
+use clap::ValueEnum;
 use serde::Deserialize;
 use std::path::Path;
 
@@ -23,6 +24,17 @@ pub struct OrchestratorConfig {
     pub dry_run: bool,
     #[serde(default = "default_enabled")]
     pub ignore_action_versions: bool,
+    #[serde(default)]
+    pub resync: ResyncPolicy,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, ValueEnum, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ResyncPolicy {
+    Never,
+    #[default]
+    All,
+    Conflicting,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,6 +124,7 @@ name = "myorg/myrepo"
         assert_eq!(config.repos[0].name, "myorg/myrepo");
         assert_eq!(config.orchestrator.branch_prefix, "orcastrate/sync");
         assert!(config.orchestrator.ignore_action_versions);
+        assert_eq!(config.orchestrator.resync, ResyncPolicy::All);
     }
 
     #[test]

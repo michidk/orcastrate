@@ -291,6 +291,16 @@ async fn sync_repo(
             errors: Vec::new(),
         };
 
+        let base_branch = match config
+            .repos
+            .iter()
+            .find(|entry| entry.name == repo_name)
+            .and_then(|entry| entry.branch.as_deref())
+        {
+            Some(branch) => branch.to_string(),
+            None => client.get_default_branch(owner, repo).await?,
+        };
+
         let workflows = client.list_workflows(owner, repo).await?;
         result.workflows_checked = workflows.len();
 
@@ -412,8 +422,7 @@ async fn sync_repo(
 
                 match mode {
                     SyncMode::Pr => {
-                        let default_branch = client.get_default_branch(owner, repo).await?;
-                        let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+                        let base_sha = client.get_branch_sha(owner, repo, &base_branch).await?;
                         let branch_name =
                             format!("{}/{workflow_name}", config.orchestrator.branch_prefix);
 
@@ -451,7 +460,7 @@ async fn sync_repo(
                                     title: &title,
                                     body: &body,
                                     head: &branch_name,
-                                    base: &default_branch,
+                                    base: &base_branch,
                                     labels: &labels,
                                 })
                                 .await?;
@@ -513,8 +522,7 @@ async fn sync_repo(
                 let update = managed
                     .get(&workflow_path)
                     .expect("managed workflow exists");
-                let default_branch = client.get_default_branch(owner, repo).await?;
-                let base_sha = client.get_branch_sha(owner, repo, &default_branch).await?;
+                let base_sha = client.get_branch_sha(owner, repo, &base_branch).await?;
                 client
                     .create_branch(owner, repo, &pr.head_branch, &base_sha)
                     .await?;

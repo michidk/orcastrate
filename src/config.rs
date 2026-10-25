@@ -40,6 +40,8 @@ pub enum ResyncPolicy {
 #[derive(Debug, Deserialize)]
 pub struct RepoEntry {
     pub name: String,
+    #[serde(default)]
+    pub branch: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
 }

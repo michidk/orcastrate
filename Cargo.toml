@@ -26,7 +26,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 jsonwebtoken = "10"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "=3.27.0"
 
 [profile.release]
 lto = true

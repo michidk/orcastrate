@@ -37,7 +37,7 @@ inputs:
 
 runs:
   using: "docker"
-  image: "docker://ghcr.io/michidk/orcastrate:main"
+  image: "docker://ghcr.io/michidk/orcastrate:main@sha256:d921be69eacf85d8b019c63daa495505d5ac101889622c47aa6e5fdf76c9fe07"
   entrypoint: "/usr/local/bin/action-entrypoint.sh"
   args:
     - ${{ inputs.config }}

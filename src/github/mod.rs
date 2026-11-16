@@ -107,6 +107,27 @@ impl GitHubClient {
         }
     }
 
+    /// Whether `path` exists in the repository's default branch.
+    pub async fn file_exists(
+        &self,
+        owner: &str,
+        repo: &str,
+        path: &str,
+    ) -> crate::error::Result<bool> {
+        match self
+            .crab
+            .repos(owner, repo)
+            .get_content()
+            .path(path)
+            .send()
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(e) if is_not_found(&e) => Ok(false),
+            Err(e) => Err(Error::GitHub(format!("get {owner}/{repo}/{path}: {e}"))),
+        }
+    }
+
     pub async fn get_file_content(
         &self,
         owner: &str,

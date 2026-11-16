@@ -10,7 +10,7 @@ pub struct TemplateRenderer {
 
 impl TemplateRenderer {
     pub fn new(templates_dir: &Path) -> crate::error::Result<Self> {
-        let glob = format!("{}/**/*.yml", templates_dir.display());
+        let glob = format!("{}/**/*.{{yml,toml}}", templates_dir.display());
         let mut tera = Tera::new();
         tera.load_from_glob(&glob).map_err(|e| {
             Error::Template(format!(
@@ -27,7 +27,13 @@ impl TemplateRenderer {
         template_id: &str,
         params: &HashMap<String, serde_norway::Value>,
     ) -> crate::error::Result<String> {
-        let template_name = format!("{template_id}.yml");
+        let toml_name = format!("{template_id}.toml");
+        let is_toml = self.tera.get_template_names().any(|name| name == toml_name);
+        let template_name = if is_toml {
+            toml_name
+        } else {
+            format!("{template_id}.yml")
+        };
 
         let mut context = tera::Context::new();
         for (key, value) in params {
@@ -48,7 +54,11 @@ impl TemplateRenderer {
             })?;
         let rendered = format!("{}\n", rendered.trim_end());
 
-        validate_yaml(&rendered, template_id)?;
+        if is_toml {
+            validate_toml(&rendered, template_id)?;
+        } else {
+            validate_yaml(&rendered, template_id)?;
+        }
 
         Ok(rendered)
     }
@@ -74,6 +84,15 @@ fn validate_yaml(content: &str, template_id: &str) -> crate::error::Result<()> {
     let _: serde_norway::Value = serde_norway::from_str(content).map_err(|e| {
         Error::YamlValidation(format!(
             "rendered template '{template_id}' produced invalid YAML: {e}"
+        ))
+    })?;
+    Ok(())
+}
+
+fn validate_toml(content: &str, template_id: &str) -> crate::error::Result<()> {
+    toml::from_str::<toml::Table>(content).map_err(|e| {
+        Error::Template(format!(
+            "rendered template '{template_id}' produced invalid TOML: {e}"
         ))
     })?;
     Ok(())
@@ -113,5 +132,24 @@ mod tests {
             format!("{header}\n\nname: Example\n")
         );
         assert!(renderer.render_workflow("name: Unmanaged\n").is_err());
+    }
+
+    #[test]
+    fn renders_toml_templates_with_raw_blocks() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("presets")).unwrap();
+        std::fs::write(
+            dir.path().join("presets/cliff.toml"),
+            "[changelog]\nbody = \"{% raw %}{% for c in commits %}{{ c }}{% endfor %}{% endraw %}\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("presets/bad.toml"), "not = [toml\n").unwrap();
+        let renderer = TemplateRenderer::new(dir.path()).unwrap();
+        let header = "# @orcastrate\n# template: presets/cliff\n# @end-orcastrate";
+        assert_eq!(
+            renderer.render_workflow(&format!("{header}\n\nold = 1\n")).unwrap(),
+            format!("{header}\n\n[changelog]\nbody = \"{{% for c in commits %}}{{{{ c }}}}{{% endfor %}}\"\n")
+        );
+        assert!(renderer.render("presets/bad", &HashMap::new()).is_err());
     }
 }

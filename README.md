@@ -165,6 +165,7 @@ pr_label = "orcastrate"            # label added to PRs
 dry_run = false                    # global dry-run toggle
 ignore_action_versions = true      # leave action refs to Renovate (default)
 resync = "all"                     # refresh open sync PRs: never, conflicting, or all
+extra_files = ["cliff.toml"]       # also manage these files when they exist (default: none)
 
 [[repos]]
 name = "myorg/repo-a"
@@ -194,6 +195,23 @@ Templates use [Tera](https://keats.github.io/tera/) (Jinja2-style) syntax. Param
 ```
 
 Templates can use defaults: `{{ toolchain | default(value="stable") }}`
+
+### Files outside workflows
+
+`extra_files` lists repository-relative paths that are managed like workflows
+when they exist and start with the same frontmatter block. Templates ending in
+`.toml` are validated as TOML instead of YAML; a template name without its
+extension picks the `.toml` template when one exists. Wrap text that is itself
+Tera syntax, such as a git-cliff changelog body, in `{% raw %}...{% endraw %}`.
+
+```toml
+# @orcastrate
+# template: presets/cliff
+# @end-orcastrate
+
+[changelog]
+# ...
+```
 
 ### Action versions and Renovate
 

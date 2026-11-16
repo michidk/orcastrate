@@ -28,13 +28,12 @@ Orcastrate is a Rust CLI for managing GitHub Actions workflows across many repos
 - GitHub App auth uses a single installation token for everything.
 - Drift is handled with one PR per workflow file so each workflow can be reviewed and merged independently.
 - Managed workflow metadata lives in YAML frontmatter embedded in YAML comments between `# @orcastrate` and `# @end-orcastrate`.
-- Templates are rendered with Tera and then validated as YAML after rendering.
+- Templates are rendered with Tera and then validated as YAML, or as TOML for `.toml` templates. `extra_files` brings files outside `.github/workflows/` under management.
 - YAML parsing uses `serde_norway` instead of `serde_yaml` to avoid the relevant `RUSTSEC` issue.
 
 ## Testing
 
 - Run `cargo test`.
-- The current unit test suite contains 13 tests across `config`, `frontmatter`, and `diff`.
 
 ## CI/CD
 

@@ -301,7 +301,12 @@ async fn sync_repo(
             None => client.get_default_branch(owner, repo).await?,
         };
 
-        let workflows = client.list_workflows(owner, repo).await?;
+        let mut workflows = client.list_workflows(owner, repo).await?;
+        for path in &config.orchestrator.extra_files {
+            if client.file_exists(owner, repo, path).await? {
+                workflows.push(crate::github::WorkflowFile { path: path.clone() });
+            }
+        }
         result.workflows_checked = workflows.len();
 
         let mut updates: Vec<WorkflowUpdate> = Vec::new();
@@ -352,7 +357,7 @@ async fn sync_repo(
                 None => rendered,
             };
 
-            let full_rendered = if config.orchestrator.ignore_action_versions {
+            let full_rendered = if config.orchestrator.ignore_action_versions && is_yaml(path) {
                 match crate::template::versions::preserve_action_versions(&content, &full_rendered)
                 {
                     Ok(rendered) => rendered,
@@ -557,6 +562,10 @@ async fn sync_repo(
 
     gha::endgroup();
     outcome
+}
+
+fn is_yaml(path: &str) -> bool {
+    path.ends_with(".yml") || path.ends_with(".yaml")
 }
 
 fn is_conflicting(pr: &crate::github::OpenSyncPr) -> bool {

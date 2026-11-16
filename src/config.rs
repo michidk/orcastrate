@@ -26,6 +26,10 @@ pub struct OrchestratorConfig {
     pub ignore_action_versions: bool,
     #[serde(default)]
     pub resync: ResyncPolicy,
+    /// Files outside `.github/workflows/`, relative to the repository root,
+    /// that are managed when they exist and carry frontmatter.
+    #[serde(default)]
+    pub extra_files: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, ValueEnum, PartialEq, Eq)]

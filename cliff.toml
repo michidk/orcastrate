@@ -1,21 +1,19 @@
+# @orcastrate
+# template: presets/cliff
+# @end-orcastrate
+
+# git-cliff configuration for conventional commit release notes.
+# https://git-cliff.org/docs/configuration
+
 [changelog]
-header = """
-# Changelog\n
-"""
+header = ""
 body = """
-{% if version %}\
-    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
-{% else %}\
-    ## [unreleased]
-{% endif %}\
 {% for group, commits in commits | group_by(attribute="group") %}
-    ### {{ group | striptags | trim | upper_first }}
-    {% for commit in commits %}
-        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
-          {% if commit.breaking %}[**breaking**] {% endif %}\
-          {{ commit.message | upper_first }}\
-    {% endfor %}
-{% endfor %}\n
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first | trim }}\
+{% endfor %}
+{% endfor %}
 """
 trim = true
 
@@ -24,21 +22,18 @@ conventional_commits = true
 filter_unconventional = true
 split_commits = false
 protect_breaking_commits = true
-filter_commits = true
-tag_pattern = "v[0-9].*"
-skip_tags = "beta|alpha|rc"
-sort_commits = "newest"
 commit_parsers = [
-    { message = "^feat", group = "<!-- 0 -->Features" },
-    { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
-    { message = "^perf", group = "<!-- 2 -->Performance" },
-    { message = "^refactor", group = "<!-- 3 -->Refactor" },
-    { message = "^doc", group = "<!-- 4 -->Documentation" },
-    { message = "^test", group = "<!-- 5 -->Testing" },
-    { message = "^style", group = "<!-- 6 -->Styling" },
-    { message = "^chore\\(release\\)", skip = true },
-    { message = "^chore\\(deps\\)", skip = true },
-    { message = "^chore|^ci", group = "<!-- 7 -->Miscellaneous" },
-    { body = ".*security", group = "<!-- 8 -->Security" },
-    { message = "^revert", group = "<!-- 9 -->Revert" },
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactor" },
+  { message = "^security", group = "Security" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^style", group = "Styling" },
+  { message = "^test", group = "Testing" },
+  { message = "^chore", skip = true },
+  { message = "^release", skip = true },
 ]
+filter_commits = false
+# Stable release tags only, so floating major tags such as v1 are ignored.
+tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"

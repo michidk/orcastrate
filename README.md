@@ -1,9 +1,14 @@
+# Orcastrate
+
+Manage shared GitHub Actions templates across repositories and open pull requests when workflows drift.
+
+<p align="center"><a href="#quick-start">Quick start</a> · <a href="#cli-usage">CLI</a> · <a href="#authentication">Authentication</a></p>
+
+<p align="center"><a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a></p>
+
 <p align="center">
   <img src=".github/images/thumbnail.png" alt="Orcastrate — GitHub Actions Orchestrator for Organizations" width="800">
 </p>
-
-> [!NOTE]
-> Stop copy-pasting workflow files across repos. Define canonical templates once, sync them everywhere, and get PRs when repos drift.
 
 ## How it works
 
